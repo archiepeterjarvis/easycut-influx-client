@@ -1,0 +1,139 @@
+"""
+@author Archie Jarvis
+
+Created to work with InfluxDB 2+ and Python 2.7
+
+Allows EC to create an InfluxDB bucket on a remote server securely for data transaction
+"""
+
+import requests
+import json
+import datetime
+import time
+
+BASE_URL = 'http://127.0.0.1:8000/api/buckets?hostname='
+
+"""
+SECTION FOR CREATING AND STORING BUCKET DETAILS
+"""
+
+
+def store_bucket_details(bucket_id, auth_token):
+    """
+    STORE BUCKET DETAILS LOCALLY
+    :param bucket_id: this machine's influx bucket ID
+    :param auth_token: this machine's influx auth key for bucket
+    :return: None
+    """
+
+    # good time to implement local db sqllite?
+    pass
+
+
+def get_new_bucket_details(hostname, bucket_type):
+    """
+    SENDS GET REQUEST FOR BUCKET DETAILS AND STORES RESULT LOCALLY ON MACHINE
+    :param bucket_type: brief description of bucket usage (event/status/etc)
+    :param hostname: machine's local hostname
+    :return: id of created bucket and relative auth token
+    """
+
+    url = BASE_URL + hostname + "&type=" + bucket_type
+    data = send_bucket_get_request(url)
+    data = json.loads(data)
+
+    bucket_id = data['bucket_id']
+    auth_token = data['auth_token']
+
+    store_bucket_details(bucket_id, auth_token)
+
+    return bucket_id, auth_token
+
+
+def send_bucket_get_request(url):
+    """
+    SENDS GET REQUEST URL AND RETURNS RESULT IF STATUS OK
+    :param url: url to send request to
+    :return: json response (see example below)
+
+    {
+        u'auth_token': u'*',
+        u'bucket_id': u'*'
+    }
+    """
+    r = requests.get(url)
+
+    if r.status_code == 200:
+        return r.content
+
+
+"""
+EPOCH TIME FORMATTING
+"""
+
+def get_influx_time():
+    return str(time.mktime(datetime.datetime.now().timetuple())).split('.')[0]
+
+
+"""
+SECTION FOR ENTERING INTO BUCKETS
+"""
+
+BASE_WRITE_URL = 'http://localhost:8086/api/v2/write?bucket=%s&org=org&precision=s'
+
+TEST_BUCKET_ID = '96ae188fadfcfe7d'
+TEST_AUTH_TOKEN = 'HougHckqOTib7ImQ0H7fJO08afdxK37tUSN44n5sFQhXWeGXxIDLtpzu1yCEsKmPb4O6sWdu73-IxVhIzj6gUw=='
+
+
+def post_request(url, headers, data):
+    """
+    SEND POST REQUEST
+    :param url: url to send request to
+    :param headers: request headers
+    :param data: request data
+    :return: result of request
+    """
+    return requests.post(url=url, headers=headers, data=data)
+
+
+def generate_line_protocol_from_kwargs(measurement, args):
+    """
+    GENERATES INFLUX LINE PROTOCOL FORMAT FROM KWARGS
+    :param measurement: measurement key
+    :param args: ...
+    :return: str of line protocol
+    """
+
+    line_protocol = measurement + ','
+
+    for key, value in args.iteritems():
+        line_protocol += "%s=%s " % (key, value)
+
+    line_protocol += get_influx_time()
+
+    return line_protocol
+
+
+def post_machine_data(measurement, **kwargs):
+    """
+    SEND MACHINE DATA TO INFLUX
+    :param measurement: measurement key
+    :param kwargs: ...
+    :return: status code
+    """
+
+    headers = {
+        'Authorization': 'Token ' + TEST_AUTH_TOKEN,
+        'Content-Type': 'application/x-www-form-urlencoded',
+    }
+
+    url = BASE_WRITE_URL % TEST_BUCKET_ID
+
+    data = generate_line_protocol_from_kwargs(measurement, args=kwargs)
+
+    response = post_request(url, headers, data)
+
+    if response.status_code != 204:
+        print(response.content)
+
+    return response.status_code
