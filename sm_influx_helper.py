@@ -6,10 +6,11 @@ Created to work with InfluxDB 2+ and Python 2.7
 Allows EC to create an InfluxDB bucket on a remote server securely for data transaction
 """
 
-import requests
-import json
 import datetime
+import json
 import time
+
+import requests
 
 BASE_URL = 'http://127.0.0.1:8000/api/buckets?hostname='
 
@@ -33,7 +34,10 @@ def store_bucket_details(bucket_id, auth_token):
 def get_new_bucket_details(hostname, bucket_type):
     """
     SENDS GET REQUEST FOR BUCKET DETAILS AND STORES RESULT LOCALLY ON MACHINE
-    :param bucket_type: brief description of bucket usage (event/status/etc)
+
+    To be run once when Wi-Fi first available.
+
+    :param bucket_type: brief description of bucket usage (event/status/job/etc)
     :param hostname: machine's local hostname
     :return: id of created bucket and relative auth token
     """
@@ -71,6 +75,7 @@ def send_bucket_get_request(url):
 EPOCH TIME FORMATTING
 """
 
+
 def get_influx_time():
     return str(time.mktime(datetime.datetime.now().timetuple())).split('.')[0]
 
@@ -96,27 +101,33 @@ def post_request(url, headers, data):
     return requests.post(url=url, headers=headers, data=data)
 
 
-def generate_line_protocol_from_kwargs(measurement, args):
+def generate_line_protocol_from_kwargs(measurement, hostname, args):
     """
-    GENERATES INFLUX LINE PROTOCOL FORMAT FROM KWARGS
+    GENERATES INFLUX LINE PROTOCOL FORMAT FROM ARGUMENTS
+    :param hostname: machine's hostname
     :param measurement: measurement key
-    :param args: ...
+    :param args: ... (change to **kwargs for testing)
     :return: str of line protocol
     """
 
+    # todo: make this cleaner
+
     line_protocol = measurement + ','
 
-    for key, value in args.iteritems():
-        line_protocol += "%s=%s " % (key, value)
+    line_protocol += 'hostname=%s' % hostname
 
-    line_protocol += get_influx_time()
+    for key, value in args.iteritems():
+        line_protocol += " %s=%s" % (key, value)
+
+    line_protocol += " " + get_influx_time()
 
     return line_protocol
 
 
-def post_machine_data(measurement, **kwargs):
+def post_machine_data(measurement, hostname, **kwargs):
     """
     SEND MACHINE DATA TO INFLUX
+    :param hostname: machine's hostname
     :param measurement: measurement key
     :param kwargs: ...
     :return: status code
@@ -129,7 +140,7 @@ def post_machine_data(measurement, **kwargs):
 
     url = BASE_WRITE_URL % TEST_BUCKET_ID
 
-    data = generate_line_protocol_from_kwargs(measurement, args=kwargs)
+    data = generate_line_protocol_from_kwargs(measurement, hostname, args=kwargs)
 
     response = post_request(url, headers, data)
 
@@ -137,3 +148,4 @@ def post_machine_data(measurement, **kwargs):
         print(response.content)
 
     return response.status_code
+
