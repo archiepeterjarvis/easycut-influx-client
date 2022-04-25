@@ -9,26 +9,52 @@ Allows EC to create an InfluxDB bucket on a remote server securely for data tran
 import datetime
 import json
 import time
-
+import sqlite3
 import requests
 
 BASE_URL = 'http://127.0.0.1:8000/api/buckets?hostname='
+
+TEST_BUCKET_ID = '96ae188fadfcfe7d'
+TEST_AUTH_TOKEN = 'HougHckqOTib7ImQ0H7fJO08afdxK37tUSN44n5sFQhXWeGXxIDLtpzu1yCEsKmPb4O6sWdu73-IxVhIzj6gUw=='
 
 """
 SECTION FOR CREATING AND STORING BUCKET DETAILS
 """
 
 
-def store_bucket_details(bucket_id, auth_token):
+def create_local_database(db_name):
+    conn = sqlite3.connect(db_name)
+
+
+def create_local_bucket_database(db_name):
+    conn = sqlite3.connect(db_name)
+
+    query = "CREATE TABLE IF NOT EXISTS Buckets (id integer PRIMARY KEY, Name text NOT NULL, BucketId text NOT NULL, " \
+            "AuthToken text NOT NULL);"
+
+    conn.execute(query)
+    conn.commit()
+
+
+def store_bucket_details(db_name, bucket_name, bucket_id, auth_token):
     """
     STORE BUCKET DETAILS LOCALLY
+    :param bucket_name:
+    :param db_name:
     :param bucket_id: this machine's influx bucket ID
     :param auth_token: this machine's influx auth key for bucket
     :return: None
     """
 
-    # good time to implement local db sqllite?
-    pass
+    create_local_bucket_database(db_name)
+
+    conn = sqlite3.connect(db_name)
+
+    query = "INSERT INTO Buckets (Name, BucketId, AuthToken) VALUES ('%s', '%s', '%s')" % (bucket_name, bucket_id,
+                                                                                           auth_token)
+
+    conn.execute(query)
+    conn.commit()
 
 
 def get_new_bucket_details(hostname, bucket_type):
@@ -85,9 +111,6 @@ SECTION FOR ENTERING INTO BUCKETS
 """
 
 BASE_WRITE_URL = 'http://localhost:8086/api/v2/write?bucket=%s&org=org&precision=s'
-
-TEST_BUCKET_ID = '96ae188fadfcfe7d'
-TEST_AUTH_TOKEN = 'HougHckqOTib7ImQ0H7fJO08afdxK37tUSN44n5sFQhXWeGXxIDLtpzu1yCEsKmPb4O6sWdu73-IxVhIzj6gUw=='
 
 
 def post_request(url, headers, data):
@@ -148,4 +171,3 @@ def post_machine_data(measurement, hostname, **kwargs):
         print(response.content)
 
     return response.status_code
-
